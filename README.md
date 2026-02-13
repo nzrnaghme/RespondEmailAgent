@@ -5,7 +5,7 @@ It reads incoming emails, classifies them using AI, generates contextual replies
 
 ## 📊 Workflow Architecture
 
-![AI Email Agent Workflow](assets/workflow.png)
+![AI Email Agent Workflow](/workflow.png)
 
 ---
 
