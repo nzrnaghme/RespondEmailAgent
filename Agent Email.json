@@ -1,0 +1,581 @@
+{
+  "name": "Agent Email",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        80,
+        448
+      ],
+      "id": "cfd67db3-6c4c-44e2-a4a9-d8668d51cd8d",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "czllu5HRUT3WoRlc",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "=define",
+        "text": "=input email text:\n{{ $('Gmail Trigger').item.json.snippet }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are an automated email scheduling decision engine.\n\nYou have access to internal tools:\n- CAL (calendar events / busy times)\n- GOALS (active goals)\n\nYou MUST use these tools internally.\nYou MUST NOT mention tools or internal reasoning in the final output.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nTIME INTERPRETATION (ABSOLUTELY STRICT)\n\nYou are given:\n- {{ $json.CURRENT_TIME_ISO }}\n- {{ $json.CURRENT_TIMEZONE }}\nthreadId = {{ $('Gmail Trigger').item.json.threadId }}\n\nThese are the ONLY source of truth for \"now\".\n\nYou MUST resolve all dates and times in the email\nSTRICTLY relative to {{ $json.CURRENT_TIME_ISO }}.\n\nRules:\n\n1. Relative dates:\n- \"tomorrow\" = date({{ $json.CURRENT_TIME_ISO }}) + 1 day\n- You MUST compute this explicitly.\n\n2. Weekdays:\n- Resolve to the NEXT occurrence strictly AFTER {{ $json.CURRENT_TIME_ISO }}.\n\n3. Explicit dates:\n- Valid ONLY if the resolved datetime is strictly AFTER {{ $json.CURRENT_TIME_ISO }}.\n- If earlier or same-day but earlier time → invalid.\n\n4. Conversation context:\n- If the user confirms a previously proposed time (e.g. \"tomorrow, not today\"),\n  you MUST reuse the last valid proposed time from the conversation history.\n\n5. If no future time can be resolved, the time is unresolved.\n\nYou MUST NOT guess.\nYou MUST NOT use system time.\n{{ $json.CURRENT_TIME_ISO }} is the single reference.\n\nCONVERSATION CONTEXT INTERPRETATION (CRITICAL):\n\nYou are given the conversation history of the email thread.\n\nRules:\n\n1. If the latest user message contains a relative time expression\n   such as \"tomorrow\", \"then\", \"that time\", or \"same time\",\n   you MUST resolve it relative to the MOST RECENT PROPOSED TIME\n   in the conversation history.\n\n2. If a previous message proposed a specific time (e.g. \"tomorrow at 11 AM\")\n   and the user later says \"tomorrow\":\n   - You MUST assume the SAME time unless explicitly changed.\n\n3. If multiple times were discussed:\n   - Use the LAST time proposed by the USER that was not rejected.\n\n4. If the user corrects the assistant (e.g. \"I said tomorrow, not today\"):\n   - You MUST treat this as confirmation of the previously proposed future time.\n\n5. Only if NO prior time exists in the conversation history,\n   interpret relative times using {{ $json.CURRENT_TIME_ISO }} alone.\n\nIf a time is confirmed through conversation history\nand CAL shows no conflicting events,\nyou MUST set should_create_event = true.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nCALENDAR INTERPRETATION\n\n- CAL returns BUSY events only.\n- If NO events overlap the resolved time window,\n  the calendar MUST be considered AVAILABLE.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nGOAL EVALUATION\n\n- If the email intent matches at least one active goal → goal_match = true\n- Otherwise → goal_match = false\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nEVENT DECISION LOGIC\n\nSet should_create_event = true ONLY IF:\n- goal_match = true\n- a meeting or scheduled activity is requested\n- a future date and time are successfully resolved\n- CAL confirms availability\n\nOtherwise:\n- should_create_event = false\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nRESOLVED DATE & TIME (MANDATORY OUTPUT)\n\nIf should_create_event = true:\n- You MUST output:\n  - resolved_date in format YYYY-MM-DD\n  - resolved_time in format HH:MM (24-hour)\n- These values MUST represent the exact scheduled start time.\n\nIf should_create_event = false:\n- resolved_date MUST be an empty string \"\"\n- resolved_time MUST be an empty string \"\"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nEVENT SUMMARY RULE\n\n- If should_create_event = true:\n  - Generate a short, clear event title.\n- If false:\n  - summary_event MUST be an empty string \"\".\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nEMAIL RESPONSE RULES\n\n- Professional and respectful\n- Clear and concise\n- Start with a polite greeting\n- End with a thank-you\n- Respond ONLY to the sender\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nFINAL OUTPUT FORMAT (ABSOLUTELY LOCKED)\n\nYour final output MUST be a SINGLE valid JSON object.\nNo extra text. No markdown. No explanations.\n\n{\n  \"Response\": \"string\",\n  \"Label\": \"work\" or \"personal\",\n  \"should_create_event\": true or false,\n  \"goal_match\": true or false,\n  \"summary_event\": \"string\",\n  \"resolved_date\": \"YYYY-MM-DD or empty string\",\n  \"resolved_time\": \"HH:MM or empty string\"\n}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nFINAL VALIDATION RULES\n\n- All fields MUST exist.\n- resolved_date and resolved_time MUST NOT be null.\n- Use empty strings when no event should be created.\n- Output NOTHING except the JSON object.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        544,
+        448
+      ],
+      "id": "89e57337-1239-4f47-96c6-7685e64d6f73",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        240,
+        816
+      ],
+      "id": "d8f18910-fe39-481e-a223-d6bb0aa3079d",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "5tsVT0v5tIhn8sum",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "for checking timing on Calender",
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "lbcagent2026@gmail.com",
+          "mode": "list",
+          "cachedResultName": "lbcagent2026@gmail.com"
+        },
+        "returnAll": true,
+        "timeMin": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('After', ``, 'string') }}",
+        "timeMax": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Before', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        544,
+        816
+      ],
+      "id": "79bd0e12-1be7-414b-ab4b-08f4bc48c4e5",
+      "name": "CAL",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "4H6c5ANgWyuKN1DK",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "this tools for get wish lists",
+        "resource": "base",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtableTool",
+      "typeVersion": 2.1,
+      "position": [
+        704,
+        816
+      ],
+      "id": "536c029f-e1dd-4090-81af-70accd7c2dc4",
+      "name": "GOALS",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "PxreuUThhF2yLtb0",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"Response\": \"string\",\n  \"Label\": \"work\",\n  \"should_create_event\":false,\n  \"goal_match\": true,\n  \"summary_event\": \"string\",\n  \"resolved_date\": \"YYYY-MM-DD or empty string\",\n  \"resolved_time\": \"HH:MM or empty string\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        880,
+        816
+      ],
+      "id": "49e9e461-9c72-4785-9e20-36758fdaa64e",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('AI Agent').item.json.output.Label }}",
+                    "rightValue": "work",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "8cdc822b-9c65-45cc-9af5-37ac4e261389"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Work"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3edc6405-768f-41fa-abc6-e92071481adc",
+                    "leftValue": "={{ $('AI Agent').item.json.output.Label }}",
+                    "rightValue": "personal",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Personal"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1440,
+        464
+      ],
+      "id": "a66add5a-b481-42d5-92da-ed6fac9f85e8",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "labelIds": [
+          "Label_3440281217679659659"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1744,
+        416
+      ],
+      "id": "187894dd-5808-4916-8c47-c1dfee517c63",
+      "name": "Add label to message",
+      "webhookId": "2c0efe0e-dfd4-4ca7-a9b6-511a845c7105",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "czllu5HRUT3WoRlc",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "labelIds": [
+          "Label_5902452223538119072"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1744,
+        640
+      ],
+      "id": "a2923025-0f73-4c64-a24f-765cc3dfa7f1",
+      "name": "Add label to message1",
+      "webhookId": "2c0efe0e-dfd4-4ca7-a9b6-511a845c7105",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "czllu5HRUT3WoRlc",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "emailType": "text",
+        "message": "={{ $('AI Agent').item.json.output.Response }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2096,
+        512
+      ],
+      "id": "c2fbd10a-1143-4d2c-96f0-074c8f979253",
+      "name": "Reply to a message",
+      "webhookId": "f02f38aa-872e-41a9-8a0f-315854e5c443",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "czllu5HRUT3WoRlc",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\n\nreturn {\n  CURRENT_TIME_ISO: now.toISOString(),\n  CURRENT_TIMEZONE: Intl.DateTimeFormat().resolvedOptions().timeZone\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        448
+      ],
+      "id": "6b9d7ab9-ad63-4e8e-a188-a890323417d3",
+      "name": "Time Zone1"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "lbcagent2026@gmail.com",
+          "mode": "list",
+          "cachedResultName": "lbcagent2026@gmail.com"
+        },
+        "start": "={{\nnew Date(\n  `${$json.output.resolved_date}T${$json.output.resolved_time}:00`\n)\n}}\n",
+        "end": "={{\nnew Date(\n  new Date(`${$json.output.resolved_date}T${$json.output.resolved_time}:00`).getTime()\n  + 60 * 60 * 1000\n)\n}}\n",
+        "additionalFields": {
+          "description": "={{ $('AI Agent').item.json.output.summary_event }}",
+          "summary": "={{ $('AI Agent').item.json.output.summary_event }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1136,
+        304
+      ],
+      "id": "84747134-2aa3-42a4-a8f2-c4bc8cd1b7bb",
+      "name": "Create an event1",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "4H6c5ANgWyuKN1DK",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.should_create_event }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    },
+                    "id": "d5b88e57-952e-4d5e-877b-e0d701913095"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "add event"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "51c24baa-e285-4fb0-85eb-19b44ad37ee2",
+                    "leftValue": "={{ $json.output.should_create_event }}",
+                    "rightValue": false,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "no need event"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        864,
+        448
+      ],
+      "id": "c8c93093-a3b2-4ecc-8bf9-6ef00d966e17",
+      "name": "Add event"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Gmail Trigger').item.json.threadId }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        400,
+        816
+      ],
+      "id": "c108eaaf-1190-4ca1-8f7e-66f90000bf82",
+      "name": "Simple Memory"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Time Zone1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CAL": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GOALS": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Add event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Add label to message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add label to message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add label to message": {
+      "main": [
+        [
+          {
+            "node": "Reply to a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add label to message1": {
+      "main": [
+        [
+          {
+            "node": "Reply to a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply to a message": {
+      "main": [
+        []
+      ]
+    },
+    "Time Zone1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an event1": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add event": {
+      "main": [
+        [
+          {
+            "node": "Create an event1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "timeSavedMode": "dynamic",
+    "timezone": "America/Los_Angeles",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "c31cb4c0-ff89-4233-838d-e2668c121a5b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "412d8b8b05ca86fb12a21f2f8ebb4206e51ac453173f652fd13e1d1e740689d9"
+  },
+  "id": "t77kjVq0LdnnQHkzbnROc",
+  "tags": []
+}
